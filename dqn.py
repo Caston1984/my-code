@@ -12,7 +12,7 @@ use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 ByteTensor = torch.cuda.ByteTensor if use_cuda else torch.ByteTensor
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class LinearSchedule(object):
     def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
@@ -83,6 +83,7 @@ class ReplayBuffer(object):
             done_mask[i] = 1 if executing act_batch[i] resulted in
             the end of an episode and 0 otherwise.
         """
+        np.random.seed(101)
         indices = [random.randint(0, len(self._storage) - 1) for _ in range(batch_size)]
         return self._encode_sample(indices)
 
@@ -113,7 +114,7 @@ class DQN(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
 
-        x = F.relu(self.linear1(x.view(x.size(0), -1)))
+        x = F.relu(self.linear1(x.reshape(x.size(0), -1))) #replaced view with reshape
         x = self.head(x)
         return x
 
@@ -137,10 +138,12 @@ class ComposedDQN(nn.Module):
 
 
 def get_value(dqn, obs):
-    return dqn(Variable(obs, volatile=True)).data.max(1)[0].item()
+    return dqn(Variable(obs, equires_grad=True)).data.max(1)[0].item() #replaced volatile = true with requires_grad=True
+    #return dqn(Variable(obs, volatile=True)).data.max(1)[0].item()
 
 def get_action(dqn, obs):
-    return dqn(Variable(obs, volatile=True)).data.max(1)[1].item()
+    return dqn(Variable(obs, requires_grad=True)).data.max(1)[1].item()
+    #return dqn(Variable(obs, volatile=True)).data.max(1)[1].item() #Original line
 
 class Agent(object):
     def __init__(self,
@@ -184,6 +187,7 @@ class Agent(object):
         self.steps = 0
 
     def select_action(self, obs):
+        np.random.seed(101)
         sample = random.random()
         eps_threshold = self.eps_schedule(self.steps)
         if sample > eps_threshold:
